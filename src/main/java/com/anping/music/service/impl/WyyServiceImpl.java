@@ -32,8 +32,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class WyyServiceImpl implements CatchService {
 
-    public static String csrf_token = "99dbe8eb6c5769ba0c7eaabc1aad7c0e";
-
     public static final String SEARCH_URL = "https://music.163.com/weapi/cloudsearch/get/web";
 
     public static final String LISTEN_URL = "https://music.163.com/weapi/song/enhance/player/url/v1";
@@ -73,7 +71,7 @@ public class WyyServiceImpl implements CatchService {
         }
         param.put("s", page.getKey());
         param.put("limit", String.valueOf(page.getPageSize()));
-        param.put("csrf_token", csrf_token);
+        param.put("csrf_token", cookieCache.getWyyCookie().getCsrfToken());
         param.put("type", "1");
         param.put("total", "false");
         if (page.getPageNum() > 1) {
@@ -83,7 +81,7 @@ public class WyyServiceImpl implements CatchService {
         Map<String, Object> encryptParam = WyyMusicUtils.weapiEncrypt(param.toString());
         List<String> cookies = new ArrayList<>();
         cookies.add(cookieCache.getVipCookie());
-        String url = SEARCH_URL + "?csrf_token=" + csrf_token;
+        String url = SEARCH_URL + "?csrf_token=" + cookieCache.getWyyCookie().getCsrfToken();
         Object resultObject = RestTemplateUtil.postFormDataWithCookie(url, encryptParam, this.get(), cookies);
         List<MusicInfo> musicInfos = new ArrayList<>();
         if (resultObject != null && !"".equals(resultObject.toString())) {
@@ -112,7 +110,7 @@ public class WyyServiceImpl implements CatchService {
     @Override
     public MusicInfo getListenDetail(String mid, Long songID) {
         JSONObject param = new JSONObject();
-        param.put("csrf_token", csrf_token);
+        param.put("csrf_token", cookieCache.getWyyCookie().getCsrfToken());
         param.put("encodeType", "aac");
         param.put("ids", "[" + mid + "]");
         param.put("level", level);
@@ -137,10 +135,10 @@ public class WyyServiceImpl implements CatchService {
     public JSONObject getLyric(String id) {
         JSONObject lyParam = new JSONObject();
         lyParam.put("id", Long.valueOf(id));
-        lyParam.put("csrf_token", csrf_token);
+        lyParam.put("csrf_token", cookieCache.getWyyCookie().getCsrfToken());
         lyParam.put("lv", -1);
         lyParam.put("tv", -1);
-        String url = LYRIC_URL + "?csrf_token=" + csrf_token;
+        String url = LYRIC_URL + "?csrf_token=" + cookieCache.getWyyCookie().getCsrfToken();
         Object lyricResultObject = RestTemplateUtil.postFormDataWithCookie(url, WyyMusicUtils.weapiEncrypt(lyParam.toString()), this.get(), null);
         return JSONObject.parseObject(lyricResultObject.toString());
     }
