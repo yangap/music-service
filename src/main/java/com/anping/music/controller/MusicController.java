@@ -1,10 +1,7 @@
 package com.anping.music.controller;
 
 import com.anping.music.config.SpringContextHolder;
-import com.anping.music.entity.DownloadInfo;
-import com.anping.music.entity.MusicInfo;
-import com.anping.music.entity.Page;
-import com.anping.music.entity.WyyUserParam;
+import com.anping.music.entity.*;
 import com.anping.music.service.CatchService;
 import com.anping.music.service.impl.WyyServiceImpl;
 import com.anping.music.utils.WyyApi;
@@ -68,15 +65,19 @@ public class MusicController {
         return data;
     }
 
-    @GetMapping("/findAllSheetByUid")
-    public ResponseResult<Object> findAllSheetByUid(@RequestParam String userCookie) {
+    @PostMapping("/findAllSheetByUid")
+    public ResponseResult<Object> findAllSheetByUid(WyyUserParam wyyUserParam) {
+        String userCookie = wyyUserParam.getUserCookie();
+        if(StringUtils.isEmpty(userCookie)){
+            return ResultUtil.success(new ArrayList<>());
+        }
         String uid = wyyApi.getUid(userCookie);
         return ResultUtil.success(wyyApi.findPlayList(uid, userCookie));
     }
 
-    @GetMapping("/findSongsBySheetId")
-    public ResponseResult<List<MusicInfo>> findSongsBySheetId(@RequestParam String sheetId, @RequestParam String userCookie) {
-        List<MusicInfo> musicInfos = wyyApi.songList(sheetId, userCookie);
+    @PostMapping("/findSongsBySheetId")
+    public ResponseResult<List<MusicInfo>> findSongsBySheetId(@RequestParam String sheetId,WyyUserParam wyyUserParam) {
+        List<MusicInfo> musicInfos = wyyApi.songList(sheetId, wyyUserParam.getUserCookie());
         return ResultUtil.success(musicInfos);
     }
 

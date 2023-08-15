@@ -3,6 +3,7 @@ package com.anping.music.utils;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.anping.music.entity.MusicInfo;
+import com.anping.music.entity.Sheet;
 import com.anping.music.entity.SyncParam;
 import com.anping.music.entity.WyyUserParam;
 import com.anping.music.service.FileCleaner;
@@ -115,7 +116,10 @@ public class WyyApi {
      * @param cookie
      * @return
      */
-    public List<Map<String, Object>> findPlayList(String uid, String cookie) {
+    public List<Sheet> findPlayList(String uid, String cookie) {
+        if(StringUtils.isEmpty(uid) || StringUtils.isEmpty(cookie)){
+            return new ArrayList<>();
+        }
         String url = "https://music.163.com/weapi/user/playlist";
         JSONObject param = new JSONObject();
         param.put("uid", uid);
@@ -126,11 +130,18 @@ public class WyyApi {
         Object resObject = RestTemplateUtil.postFormDataWithCookie(url, WyyMusicUtils.weapiEncrypt(param.toString()), get(), cookies);
         JSONObject result = JSONObject.parseObject(resObject.toString());
         JSONArray jsonArray = (JSONArray) result.get("playlist");
-        List<Map<String, Object>> list = new ArrayList<>();
+        List<Sheet> list = new ArrayList<>();
         for (Object o : jsonArray) {
-            Map e = (Map) o;
+            JSONObject e = (JSONObject) o;
             if (uid.equals(e.get("userId").toString())) {
-                list.add(e);
+                Sheet sheet = new Sheet();
+                sheet.setId(e.getInteger("id"));
+                sheet.setName(e.getString("name"));
+                sheet.setCoverImg(e.getString("coverImgUrl"));
+                sheet.setStatus(e.getInteger("status"));
+                if(sheet.getStatus()==0){
+                    list.add(sheet);
+                }
             }
         }
         return list;
@@ -171,6 +182,9 @@ public class WyyApi {
      * @return {id:"",name:""}
      */
     public List<MusicInfo> songList(String sheetId, String userCookie) {
+        if(StringUtils.isEmpty(sheetId) || StringUtils.isEmpty(userCookie)){
+            return new ArrayList<>();
+        }
         String allUrl = "https://music.163.com/weapi/v6/playlist/detail";
         JSONObject param = new JSONObject();
         param.put("id", sheetId);

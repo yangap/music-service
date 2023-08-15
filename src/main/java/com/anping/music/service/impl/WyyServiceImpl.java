@@ -159,12 +159,12 @@ public class WyyServiceImpl implements CatchService {
         taskRunning.put(uid, 0);
         threadPool.submit(() -> {
             try {
-                List<Map<String, Object>> sheetList = wyyApi.findPlayList(uid, userCookie);
+                List<Sheet> sheetList = wyyApi.findPlayList(uid, userCookie);
                 String loveSheetId = null;
                 if (sheetList != null && sheetList.size() > 0) {
-                    for (Map<String, Object> sheet : sheetList) {
-                        String sheetId = sheet.get("id").toString();
-                        String sheetName = sheet.get("name").toString();
+                    for (Sheet sheet : sheetList) {
+                        String sheetId = sheet.getId().toString();
+                        String sheetName = sheet.getName();
                         if (sheetName.endsWith("喜欢的音乐")) {
                             loveSheetId = sheetId;
                         }
