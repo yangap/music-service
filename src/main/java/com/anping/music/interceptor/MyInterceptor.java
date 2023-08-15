@@ -26,7 +26,9 @@ public class MyInterceptor implements HandlerInterceptor {
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.addHeader("Access-Control-Allow-Headers",
                 "Content-Type,X-Requested-With,accept,Origin,Access-Control-Request-Method,Access-Control-Request-Headers,token");
-        log.info( "[{}] {} from {}",request.getMethod(),requestURI,ipAddr);
+        if(!"OPTIONS".equals(request.getMethod())){
+            log.info( "[{}] {} from {}",request.getMethod(),requestURI,ipAddr);
+        }
         String token = request.getParameter("token");
         if (StringUtils.isEmpty(token)) {
             token = request.getHeader("token");
