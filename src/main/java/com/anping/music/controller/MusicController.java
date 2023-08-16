@@ -78,7 +78,7 @@ public class MusicController {
     @PostMapping("/findSongsBySheetId")
     public ResponseResult<List<MusicInfo>> findSongsBySheetId(@RequestParam String sheetId,WyyUserParam wyyUserParam) {
         String userCookie = wyyUserParam.getUserCookie();
-        if(StringUtils.isEmpty(userCookie) || !wyyApi.existUser(wyyUserParam)){
+        if(StringUtils.isEmpty(userCookie) || StringUtils.isEmpty(wyyApi.getUid(userCookie))){
             return ResultUtil.error("请先绑定用户!");
         }
         List<MusicInfo> musicInfos = wyyApi.songList(sheetId, wyyUserParam.getUserCookie());
@@ -92,7 +92,6 @@ public class MusicController {
             return ResultUtil.error("凭证不能为空!");
         }
         String uid = wyyApi.getUid(userCookie);
-        wyyUserParam.setUid(uid);
         log.info("uid {}", uid);
         if (StringUtils.isEmpty(uid)) {
             return ResultUtil.error("用户不存在或凭证已失效!");
@@ -125,7 +124,7 @@ public class MusicController {
         String uid = wyyApi.getUid(userCookie);
         wyyUserParam.setUid(uid);
         log.info("uid {}", uid);
-        if (!wyyApi.existUser(wyyUserParam)) {
+        if (StringUtils.isEmpty(uid) || !wyyApi.existUser(wyyUserParam)) {
             return ResultUtil.error("用户不存在或凭证已失效!");
         }
         if (wyyService.isRunning(uid)) {
