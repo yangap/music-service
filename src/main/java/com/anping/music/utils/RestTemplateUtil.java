@@ -77,7 +77,7 @@ public class RestTemplateUtil {
         return postForEntity.getBody();
     }
 
-    public static ResponseEntity<String> postFormData(String url,Map<String,Object> param,HttpHeaders headers,List<String> cookies){
+    public static ResponseEntity<Object> postFormData(String url,Map<String,Object> param,HttpHeaders headers,List<String> cookies){
         if (headers == null) {
             headers = new HttpHeaders();
         }
@@ -90,7 +90,7 @@ public class RestTemplateUtil {
             data.add(entry.getKey(),entry.getValue());
         }
         HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(data,headers);
-        return restTemplate.postForEntity(url, httpEntity, String.class);
+        return restTemplate.postForEntity(url, httpEntity, Object.class);
     }
 
     public static Object postFormDataWithCookie(String url, Map<String, Object> param,HttpHeaders headers,List<String> cookies) {

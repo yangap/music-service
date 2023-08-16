@@ -7,9 +7,11 @@ import com.anping.music.entity.Sheet;
 import com.anping.music.entity.SyncParam;
 import com.anping.music.entity.WyyUserParam;
 import com.anping.music.service.FileCleaner;
+import com.anping.music.service.QrCodeLogin;
 import com.anping.music.service.UploadCloudSuccess;
 import com.anping.music.service.impl.QqServiceImpl;
 import com.anping.music.service.impl.WyyServiceImpl;
+import com.anping.music.utils.result.ResponseResult;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -49,6 +51,17 @@ public class WyyApi {
 
     @Autowired
     private FileCleaner fileCleaner;
+
+    @Autowired
+    QrCodeLogin qrCodeLogin;
+
+    public String getKey() {
+        return qrCodeLogin.getKey(get());
+    }
+
+    public ResponseResult<Object> getCookie(String key) {
+        return qrCodeLogin.loginStatus(key, get());
+    }
 
     /**
      * 同步歌单
@@ -117,7 +130,7 @@ public class WyyApi {
      * @return
      */
     public List<Sheet> findPlayList(String uid, String cookie) {
-        if(StringUtils.isEmpty(uid) || StringUtils.isEmpty(cookie)){
+        if (StringUtils.isEmpty(uid) || StringUtils.isEmpty(cookie)) {
             return new ArrayList<>();
         }
         String url = "https://music.163.com/weapi/user/playlist";
@@ -139,7 +152,7 @@ public class WyyApi {
                 sheet.setName(e.getString("name"));
                 sheet.setCoverImg(e.getString("coverImgUrl"));
                 sheet.setStatus(e.getInteger("status"));
-                if(sheet.getStatus()==0){
+                if (sheet.getStatus() == 0) {
                     list.add(sheet);
                 }
             }
@@ -182,7 +195,7 @@ public class WyyApi {
      * @return {id:"",name:""}
      */
     public List<MusicInfo> songList(String sheetId, String userCookie) {
-        if(StringUtils.isEmpty(sheetId) || StringUtils.isEmpty(userCookie)){
+        if (StringUtils.isEmpty(sheetId) || StringUtils.isEmpty(userCookie)) {
             return new ArrayList<>();
         }
         String allUrl = "https://music.163.com/weapi/v6/playlist/detail";
@@ -365,7 +378,7 @@ public class WyyApi {
         String url = "https://music.163.com/weapi/cloud/user/song/match ";
         log.info("mid[{}] uploadId[{}]", musicInfo.getMid(), musicInfo.getUploadId());
         if (StringUtils.isNotEmpty(musicInfo.getMid()) && StringUtils.isNotEmpty(musicInfo.getUploadId())) {
-            if(musicInfo.getMid().equals(musicInfo.getUploadId())){
+            if (musicInfo.getMid().equals(musicInfo.getUploadId())) {
                 log.info("id is same.don't need match.");
                 return true;
             }
@@ -765,6 +778,7 @@ public class WyyApi {
         HttpHeaders headers = new HttpHeaders();
         headers.add("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36");
         headers.add("origin", "https://music.163.com");
+        headers.add("Referer", "https://music.163.com/");
         return headers;
     }
 

@@ -77,6 +77,10 @@ public class MusicController {
 
     @PostMapping("/findSongsBySheetId")
     public ResponseResult<List<MusicInfo>> findSongsBySheetId(@RequestParam String sheetId,WyyUserParam wyyUserParam) {
+        String userCookie = wyyUserParam.getUserCookie();
+        if(StringUtils.isEmpty(userCookie) || !wyyApi.existUser(wyyUserParam)){
+            return ResultUtil.error("请先绑定用户!");
+        }
         List<MusicInfo> musicInfos = wyyApi.songList(sheetId, wyyUserParam.getUserCookie());
         return ResultUtil.success(musicInfos);
     }
@@ -90,7 +94,7 @@ public class MusicController {
         String uid = wyyApi.getUid(userCookie);
         wyyUserParam.setUid(uid);
         log.info("uid {}", uid);
-        if (StringUtils.isEmpty(uid) || !wyyApi.existUser(wyyUserParam)) {
+        if (StringUtils.isEmpty(uid)) {
             return ResultUtil.error("用户不存在或凭证已失效!");
         }
         return ResultUtil.success("ok!");
@@ -121,7 +125,7 @@ public class MusicController {
         String uid = wyyApi.getUid(userCookie);
         wyyUserParam.setUid(uid);
         log.info("uid {}", uid);
-        if (StringUtils.isEmpty(uid) || !wyyApi.existUser(wyyUserParam)) {
+        if (!wyyApi.existUser(wyyUserParam)) {
             return ResultUtil.error("用户不存在或凭证已失效!");
         }
         if (wyyService.isRunning(uid)) {
@@ -133,7 +137,6 @@ public class MusicController {
             cnt = new AtomicInteger(0);
             preTime = now;
         }
-        log.info("today has sync cnt：{}", cnt.get());
         if (cnt.get() > syncLimit) {
             return ResultUtil.error("服务器今日同步次数已达到上限");
         }
@@ -145,6 +148,7 @@ public class MusicController {
         } finally {
             cnt.incrementAndGet();
             syncCnt.incrementAndGet();
+            log.info("today has sync cnt：{}", cnt.get());
         }
         return ResultUtil.success("同步任务发起成功,请等待!");
     }

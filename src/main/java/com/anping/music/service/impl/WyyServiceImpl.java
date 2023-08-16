@@ -42,7 +42,6 @@ public class WyyServiceImpl implements CatchService {
 
     public static Map<String, Integer> taskRunning = new ConcurrentHashMap<>();
 
-
     private ExecutorService threadPool = Executors.newFixedThreadPool(1);
 
     @Value("${music.level}")
