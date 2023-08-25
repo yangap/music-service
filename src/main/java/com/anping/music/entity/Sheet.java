@@ -12,7 +12,7 @@ import java.io.Serializable;
 @Data
 public class Sheet implements Serializable {
 
-    private Integer id;
+    private Long id;
 
     private String name;
 

@@ -148,7 +148,7 @@ public class WyyApi {
             JSONObject e = (JSONObject) o;
             if (uid.equals(e.get("userId").toString())) {
                 Sheet sheet = new Sheet();
-                sheet.setId(e.getInteger("id"));
+                sheet.setId(e.getLong("id"));
                 sheet.setName(e.getString("name"));
                 sheet.setCoverImg(e.getString("coverImgUrl"));
                 sheet.setStatus(e.getInteger("status"));
