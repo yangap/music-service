@@ -47,6 +47,7 @@ public class MusicController {
         if (StringUtils.isEmpty(page.getKey())) {
             return ResultUtil.success(new ArrayList<>());
         }
+        log.info("search {} from {}",page.getKey(),source);
         CatchService catchService = ((CatchService) SpringContextHolder.getBean(source));
         List<MusicInfo> list = catchService.findList(page);
         return ResultUtil.success(list);

@@ -9,6 +9,8 @@ import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
 import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,7 +132,8 @@ public class RestTemplateUtil {
             conn.setRequestProperty("accept", "*/*");
             conn.setRequestProperty("cookie", cookies.get(0));
             for(Map.Entry<String,List<String>> entry : headers.entrySet()){
-                conn.setRequestProperty(entry.getKey(), entry.getValue().get(0));
+                String value = entry.getValue().get(0);
+                conn.setRequestProperty(entry.getKey(), URLEncoder.encode(value, StandardCharsets.UTF_8.toString()));
             }
             // 往服务器里面发送数据
             byte[] writeBytes = json.getBytes();
