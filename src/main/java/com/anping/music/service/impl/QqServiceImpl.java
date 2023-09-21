@@ -112,9 +112,17 @@ public class QqServiceImpl implements CatchService {
         formData.put("req_1", req_1);
         Object res = musicsFcgApi(formData);
         JSONObject result = JSONObject.parseObject(res.toString());
-        JSONObject body = (JSONObject) ((JSONObject) ((JSONObject) result.get("req_1")).get("data")).get("body");
-        JSONArray list = (JSONArray) ((JSONObject) body.get("song")).get("list");
+        JSONObject data = (JSONObject) ((JSONObject) result.get("req_1")).get("data");
+        if (data == null) {
+            param.put("num_per_page", 10);
+            res = musicsFcgApi(formData);
+            result = JSONObject.parseObject(res.toString());
+            data = (JSONObject) ((JSONObject) result.get("req_1")).get("data");
+        }
         List<MusicInfo> musicInfos = new ArrayList<>();
+        if(data==null) return musicInfos;
+        JSONObject body = (JSONObject) data.get("body");
+        JSONArray list = (JSONArray) ((JSONObject) body.get("song")).get("list");
         for (Object e : list) {
             JSONObject jo = (JSONObject) e;
             String mid = jo.getString("mid");

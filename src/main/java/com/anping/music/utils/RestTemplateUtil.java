@@ -79,43 +79,43 @@ public class RestTemplateUtil {
         return postForEntity.getBody();
     }
 
-    public static ResponseEntity<Object> postFormData(String url,Map<String,Object> param,HttpHeaders headers,List<String> cookies){
+    public static ResponseEntity<Object> postFormData(String url, Map<String, Object> param, HttpHeaders headers, List<String> cookies) {
         if (headers == null) {
             headers = new HttpHeaders();
         }
-        if(cookies!=null && cookies.size()>0){
+        if (cookies != null && cookies.size() > 0) {
             headers.put(HttpHeaders.COOKIE, cookies);
         }
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         MultiValueMap<String, Object> data = new LinkedMultiValueMap<>();
-        for(Map.Entry<String,Object> entry : param.entrySet()){
-            data.add(entry.getKey(),entry.getValue());
+        for (Map.Entry<String, Object> entry : param.entrySet()) {
+            data.add(entry.getKey(), entry.getValue());
         }
-        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(data,headers);
+        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(data, headers);
         return restTemplate.postForEntity(url, httpEntity, Object.class);
     }
 
-    public static Object postFormDataWithCookie(String url, Map<String, Object> param,HttpHeaders headers,List<String> cookies) {
+    public static Object postFormDataWithCookie(String url, Map<String, Object> param, HttpHeaders headers, List<String> cookies) {
         if (headers == null) {
             headers = new HttpHeaders();
         }
-        if(cookies!=null && cookies.size()>0){
+        if (cookies != null && cookies.size() > 0) {
             headers.put(HttpHeaders.COOKIE, cookies);
         }
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         MultiValueMap<String, Object> data = new LinkedMultiValueMap<>();
-        for(Map.Entry<String,Object> entry : param.entrySet()){
-            data.add(entry.getKey(),entry.getValue());
+        for (Map.Entry<String, Object> entry : param.entrySet()) {
+            data.add(entry.getKey(), entry.getValue());
         }
-        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(data,headers);
+        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(data, headers);
         return restTemplate.postForObject(url, httpEntity, String.class);
     }
 
-    public static String postFormJson(String urlPath, Map<String, Object> body,List<String> cookies,HttpHeaders headers) {
-        String json = JSONObject.toJSONString(body);
+    public static String postFormJson(String urlPath, Map<String, Object> body, List<String> cookies, HttpHeaders headers) {
         String result = "";
         BufferedReader reader = null;
         try {
+            String json = JSONObject.toJSONString(body);
             URL url = new URL(urlPath);
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
@@ -126,14 +126,13 @@ public class RestTemplateUtil {
             conn.setReadTimeout(5000);
             // 设置文件类型:
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            conn.setRequestProperty("user-agent","Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36");
+            conn.setRequestProperty("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36");
             // 设置接收类型否则返回415错误
             // conn.setRequestProperty("accept","*/*")此处为暴力方法设置接受所有类型，以此来防范返回415;
             conn.setRequestProperty("accept", "*/*");
             conn.setRequestProperty("cookie", cookies.get(0));
-            for(Map.Entry<String,List<String>> entry : headers.entrySet()){
-                String value = entry.getValue().get(0);
-                conn.setRequestProperty(entry.getKey(), URLEncoder.encode(value, StandardCharsets.UTF_8.toString()));
+            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+                conn.setRequestProperty(entry.getKey(), entry.getValue().get(0));
             }
             // 往服务器里面发送数据
             byte[] writeBytes = json.getBytes();
