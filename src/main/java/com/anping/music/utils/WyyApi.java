@@ -258,12 +258,12 @@ public class WyyApi {
         for (MusicInfo m : addSheet) {
             cloudSuccess.call(m, syncParam);
         }
-        if (musicInfoList.size() > 0) {
+        if (!musicInfoList.isEmpty()) {
             //成功获取歌曲源的数据
             List<MusicInfo> listenUrls = findListenUrl(musicInfoList);
             try {
                 List<MusicInfo> retryList = this.downloadAndUploadCloudV2(listenUrls, syncParam, cloudSuccess);
-                if (retryList.size() > 0) {
+                if (!retryList.isEmpty()) {
                     log.info("num {} failList will retry...", retryList.size());
                 }
                 Utils.mySleep(2000);
@@ -417,6 +417,7 @@ public class WyyApi {
     }
 
     public List<MusicInfo> findListenUrl(List<MusicInfo> musicInfoList) {
+        if (musicInfoList == null || musicInfoList.isEmpty()) return new ArrayList<>();
         String vipCookie = cookieCache.getVipCookie();
         Map<String, MusicInfo> map = new HashMap<>();
         List<MusicInfo> fromWyy = new ArrayList<>();

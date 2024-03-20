@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class QqServiceImpl implements CatchService {
 
-    public static final String PLAY_PREFIX = "http://dl.stream.qqmusic.qq.com/";
+    public static final String PLAY_PREFIX = "http://ws6.stream.qqmusic.qq.com/";
 
     @Value("${static.path}")
     private String staticUrl;
@@ -120,7 +120,7 @@ public class QqServiceImpl implements CatchService {
             data = (JSONObject) ((JSONObject) result.get("req_1")).get("data");
         }
         List<MusicInfo> musicInfos = new ArrayList<>();
-        if(data==null) return musicInfos;
+        if (data == null) return musicInfos;
         JSONObject body = (JSONObject) data.get("body");
         JSONArray list = (JSONArray) ((JSONObject) body.get("song")).get("list");
         for (Object e : list) {
