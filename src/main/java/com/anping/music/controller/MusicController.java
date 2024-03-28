@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -56,10 +57,11 @@ public class MusicController {
     }
 
     @GetMapping("/getListenDetail")
-    public ResponseResult<MusicInfo> getListenUrl(@RequestParam String source, @RequestParam String mid, String level, Long songID) {
+    public ResponseResult<MusicInfo> getListenUrl(@RequestParam String source, @RequestParam String mid, String level, Long songID, HttpServletResponse response) {
         ResponseResult<MusicInfo> data = ResultUtil.success("ok!");
         CatchService catchService = ((CatchService) SpringContextHolder.getBean(source));
         data.setData(catchService.getListenDetail(new ListenDetailParam(mid, songID, level)));
+        response.setHeader("Cache-Control", "max-age=" + 3600);
         return data;
     }
 
