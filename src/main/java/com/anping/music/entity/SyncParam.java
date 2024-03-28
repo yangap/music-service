@@ -19,12 +19,15 @@ public class SyncParam implements Serializable {
 
     private String userCookie;
 
+    private String level;
+
     private List<MusicInfo> musicInfoList;
 
-    public SyncParam(String uid, String sheetId, String userCookie, List<MusicInfo> musicInfoList) {
+    public SyncParam(String uid, String sheetId, String userCookie, String level, List<MusicInfo> musicInfoList) {
         this.uid = uid;
         this.sheetId = sheetId;
         this.userCookie = userCookie;
+        this.level = level;
         this.musicInfoList = musicInfoList;
     }
 }

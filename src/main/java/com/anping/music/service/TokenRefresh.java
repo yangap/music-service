@@ -108,25 +108,24 @@ public class TokenRefresh {
         return false;
     }
 
-    public void startService(){
+    public void startService() {
         Timer timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
                 log.info("refresh task access...");
-                if(cookieCache.qqAccess()){
+                if (cookieCache.qqAccess()) {
                     boolean refreshResult = false;
-                    try{
+                    try {
                         refreshResult = qqRefresh();
-                    }catch (Exception e){
-                        e.printStackTrace();
-                        log.error("qq refresh error.timer stop...");
+                    } catch (Exception e) {
+                        log.error("qq refresh error.timer stop...,{}", e.toString());
                     }
-                    if(!refreshResult){
+                    if (!refreshResult) {
                         timer.cancel();
                     }
                 }
             }
-        },1000,23*3600*1000L);
+        }, 1000, 23 * 3600 * 1000L);
     }
 }

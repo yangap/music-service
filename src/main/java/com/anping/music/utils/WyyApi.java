@@ -2,10 +2,7 @@ package com.anping.music.utils;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.anping.music.entity.MusicInfo;
-import com.anping.music.entity.Sheet;
-import com.anping.music.entity.SyncParam;
-import com.anping.music.entity.WyyUserParam;
+import com.anping.music.entity.*;
 import com.anping.music.service.FileCleaner;
 import com.anping.music.service.QrCodeLogin;
 import com.anping.music.service.UploadCloudSuccess;
@@ -40,9 +37,6 @@ public class WyyApi {
     @Value("${static.path}")
     private String staticDir;
 
-    @Value("${music.level}")
-    private String level;
-
     @Autowired
     private CookieCache cookieCache;
 
@@ -76,12 +70,12 @@ public class WyyApi {
     }
 
     public void downloadMusicsToSheet(SyncParam syncParam) {
-        if (syncParam.getSheetId() != null && syncParam.getMusicInfoList() != null && syncParam.getMusicInfoList().size() > 0) {
+        if (syncParam.getSheetId() != null && syncParam.getMusicInfoList() != null && !syncParam.getMusicInfoList().isEmpty()) {
             this.pushSongsToCloud(syncParam, (musicInfo, syncParamSuccess) -> {
                 String title = musicInfo.getTitle();
                 String uid = syncParam.getUid();
                 log.info("title[{}] uploadId[{}] add sheet", title, musicInfo.getUploadId());
-                if ("wyy".equals(musicInfo.getSource()) && musicInfo.isBelongWyySheet()) {
+                if (MusicSource.WYY.equals(musicInfo.getSource()) && musicInfo.isBelongWyySheet()) {
                     match(syncParamSuccess.getUid(), musicInfo, syncParamSuccess.getUserCookie());
                 } else {
                     batchAddSheet(syncParamSuccess.getSheetId(), Collections.singletonList(musicInfo), syncParamSuccess.getUserCookie());
@@ -114,7 +108,7 @@ public class WyyApi {
                     String al = album.getString("name");
                     musicInfo.setAlbumName(al);
                     musicInfo.setPic(album.getString("picUrl"));
-                    musicInfo.setSource("wyy");
+                    musicInfo.setSource(MusicSource.WYY);
                     list.add(musicInfo);
                 }
             }
@@ -183,7 +177,7 @@ public class WyyApi {
             }
             return result != null && !"".equals(result.get("level").toString());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.toString());
         }
         return false;
     }
@@ -236,7 +230,7 @@ public class WyyApi {
             musicInfo.setSingers(singer);
             JSONObject al = (JSONObject) jo.get("al");
             musicInfo.setAlbumName(al.getString("name"));
-            musicInfo.setSource("wyy");
+            musicInfo.setSource(MusicSource.WYY);
             musicInfo.setBelongWyySheet(true);
             list.add(musicInfo);
         }
@@ -260,7 +254,7 @@ public class WyyApi {
         }
         if (!musicInfoList.isEmpty()) {
             //成功获取歌曲源的数据
-            List<MusicInfo> listenUrls = findListenUrl(musicInfoList);
+            List<MusicInfo> listenUrls = findListenUrl(musicInfoList, syncParam.getLevel());
             try {
                 List<MusicInfo> retryList = this.downloadAndUploadCloudV2(listenUrls, syncParam, cloudSuccess);
                 if (!retryList.isEmpty()) {
@@ -269,7 +263,7 @@ public class WyyApi {
                 Utils.mySleep(2000);
                 downloadAndUploadCloud(retryList, syncParam, cloudSuccess);
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error(e.toString());
             } finally {
                 fileCleaner.clean();
             }
@@ -305,7 +299,7 @@ public class WyyApi {
      */
     public void downloadAndUploadCloud(List<MusicInfo> musicInfos, SyncParam syncParam, UploadCloudSuccess cloudSuccess) {
         for (int i = 0; i < musicInfos.size(); i++) {
-            MusicInfo musicInfo = getListenUrlIfExpireAgain(musicInfos, i);
+            MusicInfo musicInfo = getListenUrlIfExpireAgain(musicInfos, i, syncParam.getLevel());
             this.uploadCloud(musicInfo, syncParam, cloudSuccess);
             Utils.mySleep(1500);
         }
@@ -318,13 +312,13 @@ public class WyyApi {
      * @param from
      * @return
      */
-    private MusicInfo getListenUrlIfExpireAgain(List<MusicInfo> musicInfos, int from) {
+    private MusicInfo getListenUrlIfExpireAgain(List<MusicInfo> musicInfos, int from, String qualityLevel) {
         long now = System.currentTimeMillis();
         MusicInfo musicInfo = musicInfos.get(from);
         if (now - musicInfo.getListenUrlCreateTime() >= 10 * 60 * 1000) {
             log.info("the song after [{}]  played time may be expired.song:[size:{}] will get again...", musicInfo.getTitle(), musicInfos.size() - from);
             List<MusicInfo> expireList = musicInfos.subList(from, musicInfos.size());
-            List<MusicInfo> listenUrl = findListenUrl(expireList);
+            List<MusicInfo> listenUrl = findListenUrl(expireList, qualityLevel);
             Map<String, MusicInfo> map = new HashMap<>();
             for (MusicInfo info : listenUrl) {
                 map.put(info.getMid(), info);
@@ -351,7 +345,7 @@ public class WyyApi {
         try {
             if (!new File(musicInfo.getLocalUrl()).exists()) {
                 Map<String, Object> headers = new HashMap<>();
-                if ("wyy".equals(musicInfo.getSource())) {
+                if (MusicSource.WYY.equals(musicInfo.getSource())) {
                     headers.put("Origin", "https://music.163.com");
                     headers.put("Referer", "https://music.163.com/");
                     headers.put("Cookie", cookieCache.getVipCookie());
@@ -370,7 +364,7 @@ public class WyyApi {
                 musicInfo.setMd5(md5);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.toString());
         }
     }
 
@@ -399,11 +393,11 @@ public class WyyApi {
         for (MusicInfo m : musicInfos) {
             if (StringUtils.isNotEmpty(m.getUploadId())) {
                 songIds.add(m.getUploadId());
-            } else if ("wyy".equals(m.getSource()) && StringUtils.isNotEmpty(m.getMid())) {
+            } else if (MusicSource.WYY.equals(m.getSource()) && StringUtils.isNotEmpty(m.getMid())) {
                 songIds.add(m.getMid());
             }
         }
-        if (songIds.size() > 0) {
+        if (!songIds.isEmpty()) {
             JSONObject param = new JSONObject();
             param.put("op", "add");
             param.put("pid", sheetId);
@@ -416,14 +410,14 @@ public class WyyApi {
         }
     }
 
-    public List<MusicInfo> findListenUrl(List<MusicInfo> musicInfoList) {
+    public List<MusicInfo> findListenUrl(List<MusicInfo> musicInfoList, String qualityLevel) {
         if (musicInfoList == null || musicInfoList.isEmpty()) return new ArrayList<>();
         String vipCookie = cookieCache.getVipCookie();
         Map<String, MusicInfo> map = new HashMap<>();
         List<MusicInfo> fromWyy = new ArrayList<>();
         List<MusicInfo> fromQq = new ArrayList<>();
         for (MusicInfo musicInfo : musicInfoList) {
-            if ("wyy".equals(musicInfo.getSource())) {
+            if (MusicSource.WYY.equals(musicInfo.getSource())) {
                 fromWyy.add(musicInfo);
                 map.put(musicInfo.getMid(), musicInfo);
             } else {
@@ -434,7 +428,7 @@ public class WyyApi {
         String url = "https://interface.music.163.com/eapi/song/enhance/player/url/v1";
         JSONObject param = new JSONObject();
         param.put("ids", "[" + mids + "]");
-        param.put("level", level);
+        param.put("level", qualityLevel);
         param.put("encodeType", "flac");
         Object resultObject = RestTemplateUtil.postFormDataWithCookie(url, WyyMusicUtils.eapiEncryptWithHeader("/api/song/enhance/player/url/v1", param), this.get(), Collections.singletonList(vipCookie));
         JSONObject info = JSONObject.parseObject(resultObject.toString());
@@ -458,31 +452,35 @@ public class WyyApi {
                     wyyGet++;
                     list.add(musicInfo);
                 } else {
-                    MusicInfo qqMusic = qqService.get(musicInfo.getTitle(), musicInfo.getSingers(), musicInfo.getAlbumName());
-                    if (qqMusic != null && StringUtils.isNotEmpty(qqMusic.getResourceUrl())) {
-                        musicInfo.setResourceUrl(qqMusic.getResourceUrl());
-                        musicInfo.setLocalUrl(staticDir + "/" + UUID.randomUUID() + ".m4a");
-                        musicInfo.setListenUrlCreateTime(System.currentTimeMillis());
-                        list.add(musicInfo);
-                        qqGet++;
-                    }
+                    MusicInfo qqMusic = qqService.bestMatch(musicInfo.getTitle(), musicInfo.getSingers(), musicInfo.getAlbumName(), qualityLevel);
+                    qqGet = recordQq(qualityLevel, list, qqGet, musicInfo, qqMusic);
                 }
             }
         }
         //qq
         for (MusicInfo musicInfo : fromQq) {
-            MusicInfo listenDetail = qqService.getListenDetail(musicInfo.getMid(), null);
-            if (StringUtils.isNotEmpty(listenDetail.getResourceUrl())) {
-                musicInfo.setResourceUrl(listenDetail.getResourceUrl());
-                musicInfo.setLocalUrl(staticDir + "/" + UUID.randomUUID() + ".m4a");
-                musicInfo.setListenUrlCreateTime(System.currentTimeMillis());
-                list.add(musicInfo);
-                qqGet++;
-            }
+            ListenDetailParam listenDetailParam = new ListenDetailParam(musicInfo.getMid(), qualityLevel);
+            MusicInfo listenDetail = qqService.getListenDetail(listenDetailParam);
+            qqGet = recordQq(qualityLevel, list, qqGet, musicInfo, listenDetail);
             Utils.mySleep(500);
         }
         log.info("find listenUrl size[{}],detail[wyy:{},qq:{}]", list.size(), wyyGet, qqGet);
         return list;
+    }
+
+    private int recordQq(String qualityLevel, List<MusicInfo> list, int qqGet, MusicInfo musicInfo, MusicInfo listenDetail) {
+        if (listenDetail != null && StringUtils.isNotEmpty(listenDetail.getResourceUrl())) {
+            MusicQuality quality = MusicQuality.getQuality(qualityLevel);
+            if (quality == null) {
+                quality = MusicQuality.AP_128;
+            }
+            musicInfo.setResourceUrl(listenDetail.getResourceUrl());
+            musicInfo.setLocalUrl(staticDir + "/" + UUID.randomUUID() + quality.getSuffix());
+            musicInfo.setListenUrlCreateTime(System.currentTimeMillis());
+            list.add(musicInfo);
+            qqGet++;
+        }
+        return qqGet;
     }
 
     public List<MusicInfo> filterAvailableMusicAndNotToSheet(List<MusicInfo> musicList, List<MusicInfo> notAvailableList) {
@@ -506,7 +504,7 @@ public class WyyApi {
         Map<String, MusicInfo> map = new HashMap<>();
         List<MusicInfo> notAvailable = new ArrayList<>();
         for (MusicInfo m : musicInfo) {
-            if ("wyy".equals(m.getSource())) {
+            if (MusicSource.WYY.equals(m.getSource())) {
                 ids.add(m.getMid());
                 map.put(m.getMid(), m);
             } else {
@@ -563,7 +561,7 @@ public class WyyApi {
             Utils.mySleep(1500);
         }
         log.info("prepare uploadV2 size songs [{}]", songs.size());
-        if (songs.size() == 0) return failedList;
+        if (songs.isEmpty()) return failedList;
         param.put("songs", songs.toString());
         param.put("uploadType", 0);
         param.put("verifyId", 1);

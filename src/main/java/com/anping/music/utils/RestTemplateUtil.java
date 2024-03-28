@@ -41,10 +41,9 @@ public class RestTemplateUtil {
         return response.getBody();
     }
 
-    public static ResponseEntity<String> getWithCookie(String url, HttpHeaders headers, List<String> cookies) {
+    public static String getWithCookie(String url, JSONObject param, HttpHeaders headers, List<String> cookies) {
         headers.put(HttpHeaders.COOKIE, cookies);
-        HttpEntity<MultiValueMap<String, Object>> formEntity = new HttpEntity<>(headers);
-        return restTemplate.exchange(url, HttpMethod.GET, formEntity, String.class);
+        return Utils.get(url, param, headers);
     }
 
     /**

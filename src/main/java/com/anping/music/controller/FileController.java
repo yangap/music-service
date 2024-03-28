@@ -2,6 +2,7 @@ package com.anping.music.controller;
 
 import com.anping.music.config.SpringContextHolder;
 import com.anping.music.entity.DownloadInfo;
+import com.anping.music.entity.ListenDetailParam;
 import com.anping.music.entity.MusicSource;
 import com.anping.music.service.CatchService;
 import com.anping.music.utils.DownloadUtils;
@@ -35,19 +36,17 @@ public class FileController {
     private String tmp;
 
     @GetMapping("/download")
-    public void download(@RequestParam String source,MusicSource musicSource, HttpServletResponse response) {
+    public void download(@RequestParam String source) {
         CatchService catchService = ((CatchService) SpringContextHolder.getBean(source));
-        String localPath = catchService.getByMV(musicSource);
-        downLocalFile(localPath, response);
     }
 
     @GetMapping("/downloadSource")
-    public void downloadSource(@RequestParam String mid, String musicName,@RequestParam String source, HttpServletResponse response) {
-        log.info("download music {}",musicName);
+    public void downloadSource(@RequestParam String mid, String musicName, @RequestParam String source, HttpServletResponse response) {
+        log.info("download music {}", musicName);
         DownloadInfo.totalDownload.incrementAndGet();
         CatchService catchService = ((CatchService) SpringContextHolder.getBean(source));
-        String listenUrl = catchService.getListenDetail(mid,null).getResourceUrl();
-        if(StringUtils.isEmpty(listenUrl)){
+        String listenUrl = catchService.getListenDetail(new ListenDetailParam(mid)).getResourceUrl();
+        if (StringUtils.isEmpty(listenUrl)) {
             log.info("找不到歌词源!");
             return;
         }

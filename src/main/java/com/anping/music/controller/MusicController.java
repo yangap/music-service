@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequestMapping("/music")
 @Slf4j
 public class MusicController {
-
     @Value("${sync.limit}")
     private Integer syncLimit;
 
@@ -35,22 +34,20 @@ public class MusicController {
 
     @Autowired
     private WyyServiceImpl wyyService;
-
     private long preTime = System.currentTimeMillis();
-
     AtomicInteger cnt = new AtomicInteger(0);
 
     AtomicInteger syncCnt = new AtomicInteger(0);
 
     @GetMapping("/search")
-    public ResponseResult<Object> search(Page page, @RequestParam String source) {
+    public ResponseResult<Object> search(Page<MusicInfo> page, @RequestParam String source) {
         if (StringUtils.isEmpty(page.getKey())) {
             return ResultUtil.success(new ArrayList<>());
         }
-        log.info("search {} from {}",page.getKey(),source);
+        log.info("search {} from {}", page.getKey(), source);
         CatchService catchService = ((CatchService) SpringContextHolder.getBean(source));
-        List<MusicInfo> list = catchService.findList(page);
-        return ResultUtil.success(list);
+        Page<MusicInfo> pageList = catchService.findList(page);
+        return ResultUtil.success(pageList);
     }
 
     @GetMapping("/getTotalDownload")
@@ -59,17 +56,17 @@ public class MusicController {
     }
 
     @GetMapping("/getListenDetail")
-    public ResponseResult<MusicInfo> getListenUrl(@RequestParam String source, @RequestParam String mid, Long songID) {
+    public ResponseResult<MusicInfo> getListenUrl(@RequestParam String source, @RequestParam String mid, String quality, Long songID) {
         ResponseResult<MusicInfo> data = ResultUtil.success("ok!");
         CatchService catchService = ((CatchService) SpringContextHolder.getBean(source));
-        data.setData(catchService.getListenDetail(mid, songID));
+        data.setData(catchService.getListenDetail(new ListenDetailParam(mid, songID, quality)));
         return data;
     }
 
     @PostMapping("/findAllSheetByUid")
     public ResponseResult<Object> findAllSheetByUid(WyyUserParam wyyUserParam) {
         String userCookie = wyyUserParam.getUserCookie();
-        if(StringUtils.isEmpty(userCookie)){
+        if (StringUtils.isEmpty(userCookie)) {
             return ResultUtil.success(new ArrayList<>());
         }
         String uid = wyyApi.getUid(userCookie);
@@ -77,9 +74,9 @@ public class MusicController {
     }
 
     @PostMapping("/findSongsBySheetId")
-    public ResponseResult<List<MusicInfo>> findSongsBySheetId(@RequestParam String sheetId,WyyUserParam wyyUserParam) {
+    public ResponseResult<List<MusicInfo>> findSongsBySheetId(@RequestParam String sheetId, WyyUserParam wyyUserParam) {
         String userCookie = wyyUserParam.getUserCookie();
-        if(StringUtils.isEmpty(userCookie) || StringUtils.isEmpty(wyyApi.getUid(userCookie))){
+        if (StringUtils.isEmpty(userCookie) || StringUtils.isEmpty(wyyApi.getUid(userCookie))) {
             return ResultUtil.error("请先绑定用户!");
         }
         List<MusicInfo> musicInfos = wyyApi.songList(sheetId, wyyUserParam.getUserCookie());
@@ -87,9 +84,9 @@ public class MusicController {
     }
 
     @PostMapping("/checkUser")
-    public ResponseResult<Object> checkUser(@RequestBody WyyUserParam wyyUserParam){
+    public ResponseResult<Object> checkUser(@RequestBody WyyUserParam wyyUserParam) {
         String userCookie = wyyUserParam.getUserCookie();
-        if(StringUtils.isEmpty(userCookie)){
+        if (StringUtils.isEmpty(userCookie)) {
             return ResultUtil.error("凭证不能为空!");
         }
         String uid = wyyApi.getUid(userCookie);
@@ -101,7 +98,7 @@ public class MusicController {
     }
 
     @PostMapping("/findDailyPush")
-    public ResponseResult<List<MusicInfo>> findDailyPush(@RequestBody WyyUserParam wyyUserParam){
+    public ResponseResult<List<MusicInfo>> findDailyPush(@RequestBody WyyUserParam wyyUserParam) {
         String userCookie = wyyUserParam.getUserCookie();
         if (StringUtils.isEmpty(userCookie)) {
             return ResultUtil.error("用户cookie不能为空!");
@@ -143,12 +140,12 @@ public class MusicController {
         try {
             wyyService.syncUserSheet(wyyUserParam);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.toString());
             return ResultUtil.error("error!");
         } finally {
             cnt.incrementAndGet();
             syncCnt.incrementAndGet();
-            log.info("today has sync cnt：{}", cnt.get());
+            log.info("today sync counter：{}", cnt.get());
         }
         return ResultUtil.success("同步任务发起成功,请等待!");
     }

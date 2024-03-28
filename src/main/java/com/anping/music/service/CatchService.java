@@ -1,11 +1,9 @@
 package com.anping.music.service;
 
+import com.anping.music.entity.ListenDetailParam;
 import com.anping.music.entity.MusicInfo;
-import com.anping.music.entity.MusicSource;
 import com.anping.music.entity.Page;
 import org.springframework.http.HttpHeaders;
-
-import java.util.List;
 
 /**
  * @author Anping Sec
@@ -16,10 +14,8 @@ public interface CatchService {
 
     HttpHeaders get();
 
-    List<MusicInfo> findList(Page page);
+    Page<MusicInfo> findList(Page<MusicInfo> page);
 
-    MusicInfo getListenDetail(String mid,Long songID);
-
-    String getByMV(MusicSource musicSource);
+    MusicInfo getListenDetail(ListenDetailParam listenDetailParam);
 
 }

@@ -19,6 +19,8 @@ public class WyyUserParam implements Serializable {
 
     private String nickname;
 
+    private String level;
+
     /**
      * 是否同步歌单
      */

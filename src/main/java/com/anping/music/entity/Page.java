@@ -1,8 +1,11 @@
 package com.anping.music.entity;
 
 import lombok.Data;
+import lombok.Setter;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Anping Sec
@@ -10,11 +13,15 @@ import java.io.Serializable;
  * description:
  */
 @Data
-public class Page implements Serializable {
+public class Page<T> implements Serializable {
 
-    private int pageNum=1;
+    private int pageNum = 1;
 
-    private int PageSize=10;
+    private int PageSize = 10;
+
+    private long total;
 
     private String key;
+
+    List<T> data = new ArrayList<>();
 }

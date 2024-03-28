@@ -2,7 +2,6 @@ package com.anping.music.service.impl;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.anping.music.controller.MusicController;
 import com.anping.music.entity.*;
 import com.anping.music.service.CatchService;
 import com.anping.music.utils.CookieCache;
@@ -28,7 +27,7 @@ import java.util.stream.Collectors;
  * @date 2023/04/10
  * description:
  */
-@Service("wyy")
+@Service(MusicSource.WYY)
 @Slf4j
 public class WyyServiceImpl implements CatchService {
 
@@ -43,9 +42,6 @@ public class WyyServiceImpl implements CatchService {
     public static Map<String, Integer> taskRunning = new ConcurrentHashMap<>();
 
     private ExecutorService threadPool = Executors.newFixedThreadPool(1);
-
-    @Value("${music.level}")
-    private String level;
 
     @Autowired
     CookieCache cookieCache;
@@ -62,7 +58,7 @@ public class WyyServiceImpl implements CatchService {
     }
 
     @Override
-    public List<MusicInfo> findList(Page page) {
+    public Page<MusicInfo> findList(Page<MusicInfo> page) {
         JSONObject param = new JSONObject();
         int offset = (page.getPageNum() - 1) * page.getPageSize();
         if (offset > 0) {
@@ -85,8 +81,11 @@ public class WyyServiceImpl implements CatchService {
         List<MusicInfo> musicInfos = new ArrayList<>();
         if (resultObject != null && !"".equals(resultObject.toString())) {
             JSONObject jsonObject = JSONObject.parseObject(resultObject.toString());
-            JSONArray list = (JSONArray) ((JSONObject) jsonObject.get("result")).get("songs");
-            if (list != null && list.size() > 0) {
+            JSONObject result = (JSONObject) jsonObject.get("result");
+            Integer total = result.getInteger("songCount");
+            page.setTotal(total);
+            JSONArray list = (JSONArray) result.get("songs");
+            if (list != null) {
                 for (Object e : list) {
                     JSONObject item = (JSONObject) e;
                     MusicInfo musicInfo = new MusicInfo();
@@ -98,30 +97,41 @@ public class WyyServiceImpl implements CatchService {
                     JSONObject al = (JSONObject) item.get("al");
                     musicInfo.setAlbumName(al.getString("name"));
                     musicInfo.setPic(al.getString("picUrl"));
-                    musicInfo.setSource("wyy");
+                    //音质
+                    List<MusicQuality> qualityList = musicInfo.getQualityList();
+                    qualityList.add(MusicQuality.AP_128);
+                    qualityList.add(MusicQuality.AP_320);
+                    qualityList.add(MusicQuality.AP_FLAC);
+                    musicInfo.setSource(MusicSource.WYY);
                     musicInfos.add(musicInfo);
                 }
             }
         }
-        return musicInfos;
+        page.setData(musicInfos);
+        return page;
     }
 
     @Override
-    public MusicInfo getListenDetail(String mid, Long songID) {
+    public MusicInfo getListenDetail(ListenDetailParam listenDetailParam) {
+        String mid = listenDetailParam.getMid();
+        String level = listenDetailParam.getLevel() != null ? listenDetailParam.getLevel() : MusicQuality.AP_128.getLevel();
+        MusicQuality quality = MusicQuality.getQuality(level);
+        MusicInfo musicInfo = new MusicInfo();
+        musicInfo.setMid(mid);
+        musicInfo.setSource(MusicSource.WYY);
+        if (quality == null) return musicInfo;
         JSONObject param = new JSONObject();
         param.put("csrf_token", cookieCache.getWyyCookie().getCsrfToken());
         param.put("encodeType", "aac");
         param.put("ids", "[" + mid + "]");
-        param.put("level", level);
-        String url = PLUS_LISTEN_URL;
+        //#standard higher exhigh lossless jymaster
+        param.put("level", quality.getLabel());
         List<String> cookies = new ArrayList<>();
         cookies.add(cookieCache.getVipCookie());
-        Object resultObject = RestTemplateUtil.postFormDataWithCookie(url, WyyMusicUtils.eapiEncryptWithHeader("/api/song/enhance/player/url/v1", param), this.get(), cookies);
+        Object resultObject = RestTemplateUtil.postFormDataWithCookie(PLUS_LISTEN_URL, WyyMusicUtils.eapiEncryptWithHeader("/api/song/enhance/player/url/v1", param), this.get(), cookies);
         JSONObject info = JSONObject.parseObject(resultObject.toString());
         JSONArray jsonArray = (JSONArray) info.get("data");
-        MusicInfo musicInfo = new MusicInfo();
-        musicInfo.setMid(mid);
-        if (jsonArray != null && jsonArray.size() > 0) {
+        if (jsonArray != null && !jsonArray.isEmpty()) {
             String listenUrl = ((JSONObject) jsonArray.get(0)).getString("url");
             musicInfo.setResourceUrl(listenUrl);
         }
@@ -142,16 +152,15 @@ public class WyyServiceImpl implements CatchService {
         return JSONObject.parseObject(lyricResultObject.toString());
     }
 
-    @Override
-    public String getByMV(MusicSource musicSource) {
-        return null;
-    }
-
     public boolean isRunning(String uid) {
         return taskRunning.containsKey(uid);
     }
 
     public void syncUserSheet(WyyUserParam wyyUserParam) {
+        MusicQuality quality = MusicQuality.getQuality(wyyUserParam.getLevel());
+        if (quality == null) {
+            wyyUserParam.setLevel(MusicQuality.AP_128.getLevel());
+        }
         String uid = wyyUserParam.getUid();
         String userCookie = wyyUserParam.getUserCookie();
         log.info("syncUserSheet uid[{}]", uid);
@@ -160,7 +169,7 @@ public class WyyServiceImpl implements CatchService {
             try {
                 List<Sheet> sheetList = wyyApi.findPlayList(uid, userCookie);
                 String loveSheetId = null;
-                if (sheetList != null && sheetList.size() > 0) {
+                if (sheetList != null && !sheetList.isEmpty()) {
                     for (Sheet sheet : sheetList) {
                         String sheetId = sheet.getId().toString();
                         String sheetName = sheet.getName();
@@ -169,7 +178,7 @@ public class WyyServiceImpl implements CatchService {
                         }
                         if (wyyUserParam.isSyncSheet()) {
                             log.info("start to sync song sheet [{}]", sheetName);
-                            SyncParam syncParam = new SyncParam(uid, sheetId, userCookie, null);
+                            SyncParam syncParam = new SyncParam(uid, sheetId, userCookie, wyyUserParam.getLevel(), null);
                             wyyApi.syncSheet(syncParam);
                             int sec = 2 + (int) (Math.random() * 10);
                             Thread.sleep(sec * 1000);
@@ -177,17 +186,16 @@ public class WyyServiceImpl implements CatchService {
                     }
                     List<MusicInfo> addMusics = wyyUserParam.getAddMusics();
                     if (loveSheetId != null) {
-                        SyncParam syncParam = new SyncParam(uid, loveSheetId, userCookie, addMusics);
+                        SyncParam syncParam = new SyncParam(uid, loveSheetId, userCookie, wyyUserParam.getLevel(), addMusics);
                         wyyApi.downloadMusicsToSheet(syncParam);
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error(e.toString());
             } finally {
                 Integer successNum = taskRunning.remove(uid);
                 log.info("nickname[{}] upload cloud success total num: {}", wyyUserParam.getNickname(), successNum);
             }
         });
     }
-
 }

@@ -1,8 +1,11 @@
 package com.anping.music.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Anping Sec
@@ -21,6 +24,11 @@ public class MusicInfo implements Serializable {
     private String singers;
 
     /**
+     * 音质
+     */
+    private String level;
+
+    /**
      * 总时长
      */
     private Integer interval;
@@ -36,8 +44,6 @@ public class MusicInfo implements Serializable {
 
     private String lyric;
 
-    private String mvUrl;
-
     /**
      * 音乐地址
      */
@@ -45,8 +51,10 @@ public class MusicInfo implements Serializable {
 
     private String localUrl;
 
+    @JsonIgnore
     private String md5;
 
+    @JsonIgnore
     private String uploadId;
 
     private String ext;
@@ -54,15 +62,21 @@ public class MusicInfo implements Serializable {
     private Long fileSize;
 
     /**
+     * 支持的音质
+     */
+    private List<MusicQuality> qualityList = new ArrayList<>();
+
+    /**
      * 获取到播放url的时间
      */
     private long listenUrlCreateTime;
 
     /**
-     * 来源:wyy,qq
+     * 来源:wy,pp
      */
     private String source;
 
+    @JsonIgnore
     private boolean belongWyySheet;
 
 }

@@ -2,9 +2,7 @@ package com.anping.music.service.impl;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.anping.music.entity.MusicInfo;
-import com.anping.music.entity.MusicSource;
-import com.anping.music.entity.Page;
+import com.anping.music.entity.*;
 import com.anping.music.service.CatchService;
 import com.anping.music.utils.*;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,20 +20,14 @@ import java.util.stream.Collectors;
  * @date 2023/03/06
  * description:
  */
-@Service("qq")
+@Service(MusicSource.QQ)
 @Slf4j
 public class QqServiceImpl implements CatchService {
-
     public static final String PLAY_PREFIX = "http://ws6.stream.qqmusic.qq.com/";
-
-    @Value("${static.path}")
-    private String staticUrl;
+    public static final String LIST_URL_V2 = "http://c.y.qq.com/soso/fcgi-bin/client_search_cp";
 
     @Autowired
     private CookieCache cookieCache;
-
-    @Autowired
-    private FFmpeg fFmpeg;
 
     @Override
     public HttpHeaders get() {
@@ -47,12 +38,13 @@ public class QqServiceImpl implements CatchService {
         return httpHeaders;
     }
 
-    public MusicInfo get(String title, String singers, String albumName) {
-        Page page = new Page();
+    public MusicInfo bestMatch(String title, String singers, String albumName, String level) {
+        Page<MusicInfo> page = new Page<>();
         String key = title + "-" + singers;
         page.setKey(key);
         log.info("[{}] start to get source from qq", key);
-        List<MusicInfo> list = findList(page);
+        Page<MusicInfo> pages = findList(page);
+        List<MusicInfo> list = pages.getData();
         MusicInfo bestMatch = null;
         String[] wyySingers = singers.split(",");
         for (MusicInfo musicInfo : list) {
@@ -77,7 +69,8 @@ public class QqServiceImpl implements CatchService {
         if (bestMatch != null) {
             log.info("{} {} match from qq, album match [{}]", bestMatch.getSingers(), bestMatch.getTitle(), albumName.equals(bestMatch.getAlbumName()));
             Utils.mySleep(500);
-            MusicInfo listenDetail = getListenDetail(bestMatch.getMid(), null);
+            ListenDetailParam listenDetailParam = new ListenDetailParam(bestMatch.getMid(), level);
+            MusicInfo listenDetail = getListenDetail(listenDetailParam);
             bestMatch.setResourceUrl(listenDetail.getResourceUrl());
             return bestMatch;
         }
@@ -96,56 +89,76 @@ public class QqServiceImpl implements CatchService {
     }
 
     @Override
-    public List<MusicInfo> findList(Page page) {
-        JSONObject formData = new JSONObject();
-        JSONObject req_1 = new JSONObject();
-        req_1.put("method", "DoSearchForQQMusicDesktop");
-        req_1.put("module", "music.search.SearchCgiService");
+    public Page<MusicInfo> findList(Page<MusicInfo> page) {
+        return findListV2(page);
+    }
+
+    public Page<MusicInfo> findListV2(Page<MusicInfo> page) {
         JSONObject param = new JSONObject();
-        param.put("searchid", "65722113602762407");
-        param.put("remoteplace", "txt.yqq.top");
-        param.put("search_type", 0);
-        param.put("query", page.getKey());
-        param.put("page_num", page.getPageNum());
-        param.put("num_per_page", page.getPageSize());
-        req_1.put("param", param);
-        formData.put("req_1", req_1);
-        Object res = musicsFcgApi(formData);
-        JSONObject result = JSONObject.parseObject(res.toString());
-        JSONObject data = (JSONObject) ((JSONObject) result.get("req_1")).get("data");
-        if (data == null) {
-            param.put("num_per_page", 10);
-            res = musicsFcgApi(formData);
-            result = JSONObject.parseObject(res.toString());
-            data = (JSONObject) ((JSONObject) result.get("req_1")).get("data");
+        param.put("format", "json");
+        int pageNum = page.getPageNum(), pageSize = page.getPageSize();
+        param.put("p", pageNum);
+        param.put("n", pageSize);
+        param.put("w", page.getKey());
+        param.put("cr", 1);
+        param.put("g_tk", 5381);
+        param.put("t", 0);
+        if (page.getTotal() > 0 && page.getTotal() - (long) (pageNum - 1) * pageSize > 0) {
+            return page;
         }
-        List<MusicInfo> musicInfos = new ArrayList<>();
-        if (data == null) return musicInfos;
-        JSONObject body = (JSONObject) data.get("body");
-        JSONArray list = (JSONArray) ((JSONObject) body.get("song")).get("list");
-        for (Object e : list) {
-            JSONObject jo = (JSONObject) e;
-            String mid = jo.getString("mid");
-            String title = jo.getString("title");
-            JSONObject mv = (JSONObject) jo.get("mv");
-            String mvUrl = "mv/" + mv.getString("vid");
-            JSONArray singers = (JSONArray) jo.get("singer");
-            String singerNames = singers.stream().map(k -> ((JSONObject) k).get("name").toString()).collect(Collectors.joining("/"));
-            MusicInfo musicInfo = new MusicInfo();
-            musicInfo.setMid(mid);
-            musicInfo.setSongID(jo.getLong("id"));
-            musicInfo.setTitle(title);
-            musicInfo.setSingers(singerNames);
-            musicInfo.setInterval(jo.getInteger("interval"));
-            JSONObject album = (JSONObject) jo.get("album");
-            String pic = this.getAlbumPic(album.getString("pmid"), null);
-            musicInfo.setPic(pic);
-            musicInfo.setAlbumName(album.getString("name"));
-            musicInfo.setSource("qq");
-            musicInfo.setMvUrl(mvUrl);
-            musicInfos.add(musicInfo);
+        List<String> cookies = new ArrayList<>();
+        String cookie = cookieCache.getQqVipCookie();
+        cookies.add(cookie);
+        String responseStr = RestTemplateUtil.getWithCookie(LIST_URL_V2, param, this.get(), cookies);
+        List<MusicInfo> list = new ArrayList<>();
+        if (!responseStr.isEmpty()) {
+            JSONObject result = JSONObject.parseObject(responseStr);
+            JSONObject dataJson = ((JSONObject) result.get("data"));
+            if (dataJson != null) {
+                JSONObject song = (JSONObject) dataJson.get("song");
+                if (song != null) {
+                    Integer total = song.getInteger("totalnum");
+                    page.setTotal(total);
+                    JSONArray songList = (JSONArray) song.get("list");
+                    if (songList != null) {
+                        for (Object o : songList) {
+                            JSONObject item = (JSONObject) o;
+                            String mid = item.getString("songmid");
+                            String title = item.getString("songname");
+                            Long songId = item.getLong("songid");
+                            String albumMid = item.getString("albummid");
+                            String pic = this.getAlbumPic(albumMid, null);
+                            String albumName = item.getString("albumname");
+                            JSONArray singers = (JSONArray) item.get("singer");
+                            String singerNames = singers.stream().map(k -> ((JSONObject) k).get("name").toString()).collect(Collectors.joining("/"));
+                            MusicInfo musicInfo = new MusicInfo();
+                            musicInfo.setMid(mid);
+                            musicInfo.setTitle(title);
+                            musicInfo.setSongID(songId);
+                            musicInfo.setPic(pic);
+                            musicInfo.setAlbumName(albumName);
+                            musicInfo.setSingers(singerNames);
+                            musicInfo.setInterval(item.getInteger("interval"));
+                            List<MusicQuality> qualityList = musicInfo.getQualityList();
+                            addIfAbsent(item, "size128", MusicQuality.AP_128, qualityList);
+                            addIfAbsent(item, "size320", MusicQuality.AP_320, qualityList);
+                            addIfAbsent(item, "sizeflac", MusicQuality.AP_FLAC, qualityList);
+                            musicInfo.setSource(MusicSource.QQ);
+                            list.add(musicInfo);
+                        }
+                    }
+                }
+            }
         }
-        return musicInfos;
+        page.setData(list);
+        return page;
+    }
+
+    private void addIfAbsent(JSONObject item, String key, MusicQuality musicQuality, List<MusicQuality> qualityList) {
+        Integer val = item.getInteger(key);
+        if (val != null && val > 0) {
+            qualityList.add(musicQuality);
+        }
     }
 
     public String getAlbumPic(String alBumPMid, Integer t) {
@@ -163,7 +176,23 @@ public class QqServiceImpl implements CatchService {
     }
 
     @Override
-    public MusicInfo getListenDetail(String mid, Long songID) {
+    public MusicInfo getListenDetail(ListenDetailParam listenDetailParam) {
+        String levelParam = listenDetailParam.getLevel();
+        String floorLevel = findFloorLevel(listenDetailParam.getMid(), levelParam);
+        listenDetailParam.setLevel(floorLevel);
+        if (!levelParam.equals(floorLevel)) {
+            log.info("search level[{}]. match level[{}]", levelParam, floorLevel);
+        }
+        String level = listenDetailParam.getLevel();
+        if (!MusicQuality.AP_128.getLevel().equals(level)) {
+            return getListenDetail_V2(listenDetailParam);
+        }
+        return getListenDetail_V1(listenDetailParam);
+    }
+
+    public MusicInfo getListenDetail_V1(ListenDetailParam listenDetailParam) {
+        String mid = listenDetailParam.getMid();
+        Long songID = listenDetailParam.getSongID();
         JSONObject body = new JSONObject();
         JSONObject req_6 = new JSONObject();
         req_6.put("module", "vkey.GetVkeyServer");
@@ -202,16 +231,169 @@ public class QqServiceImpl implements CatchService {
         JSONArray midUrlInfo = (JSONArray) ((JSONObject) ((JSONObject) result.get("req_6")).get("data")).get("midurlinfo");
         JSONObject info = (JSONObject) midUrlInfo.get(0);
         musicInfo.setMid(mid);
+        musicInfo.setSource(MusicSource.QQ);
         musicInfo.setSongID(songID);
+        musicInfo.setLevel(MusicQuality.AP_128.getLevel());
         String purl = info.getString("purl");
         String listenUrl = StringUtils.isNotEmpty(purl) ? PLAY_PREFIX + purl : "";
         musicInfo.setResourceUrl(listenUrl);
         return musicInfo;
     }
 
+    public JSONObject getDetailInfo(String mid) {
+        String url = "http://u.y.qq.com/cgi-bin/musicu.fcg";
+        JSONObject content = new JSONObject();
+        JSONObject data = new JSONObject();
+        JSONObject songInfo = new JSONObject();
+        songInfo.put("module", "music.pf_song_detail_svr");
+        songInfo.put("method", "get_song_detail_yqq");
+        JSONObject param = new JSONObject();
+        param.put("song_mid", mid);
+        songInfo.put("param", param);
+        data.put("songinfo", songInfo);
+        content.put("data", data);
+        String responseStr = getV2(url, content);
+        JSONObject detail = new JSONObject();
+        if (!responseStr.isEmpty()) {
+            JSONObject result = JSONObject.parseObject(responseStr);
+            JSONObject song = (JSONObject) result.get("songinfo");
+            if (song != null) {
+                detail = (JSONObject) song.get("data");
+            }
+        }
+        return detail;
+    }
+
+    /**
+     * 找到最接近查询音质的可用音质
+     */
+    public String findFloorLevel(String mid, String searchLevel) {
+        if (MusicQuality.AP_128.getLevel().equals(searchLevel)) {
+            return searchLevel;
+        }
+        JSONObject detailInfo = getDetailInfo(mid);
+        if (detailInfo == null) return null;
+        JSONObject tractInfo = (JSONObject) detailInfo.get("track_info");
+        if (tractInfo != null) {
+            JSONObject file = (JSONObject) tractInfo.get("file");
+            if (file != null) {
+                Integer lessLoss = file.getInteger("size_flac");
+                Integer high = file.getInteger("size_320mp3");
+                boolean flac = lessLoss != null && lessLoss > 0;
+                boolean mp3 = high != null && high > 0;
+                if (MusicQuality.AP_FLAC.getLevel().equals(searchLevel)) {
+                    if (flac) return MusicQuality.AP_FLAC.getLevel();
+                }
+                if (mp3) return MusicQuality.AP_320.getLevel();
+            }
+        }
+        return MusicQuality.AP_128.getLevel();
+    }
+
+    public MusicInfo getListenDetail_V2(ListenDetailParam listenDetailParam) {
+        String level = listenDetailParam.getLevel();
+        String mid = listenDetailParam.getMid();
+        Long songID = listenDetailParam.getSongID();
+        MusicQuality musicQuality = MusicQuality.getQuality(level);
+        MusicInfo musicInfo = new MusicInfo();
+        musicInfo.setMid(mid);
+        musicInfo.setSongID(songID);
+        musicInfo.setSource(MusicSource.QQ);
+        if (musicQuality == null) return musicInfo;
+        String file = musicQuality.getS() + mid + mid + musicQuality.getSuffix();
+        QqCookie qqCookie = cookieCache.getQqCookie();
+        String uin = qqCookie.getUin();
+        JSONObject dataBody = new JSONObject();
+        dataBody.put("-", "getplaysongvkey");
+        dataBody.put("g_tk", 5381);
+        dataBody.put("loginUin", uin);
+        dataBody.put("hostUin", 0);
+        dataBody.put("format", "json");
+        dataBody.put("inCharset", "utf8");
+        dataBody.put("outCharset", "utf-8¬ice=0");
+        dataBody.put("platform", "yqq.json");
+        dataBody.put("needNewCode", 0);
+        JSONObject data = new JSONObject();
+        JSONObject comm = new JSONObject();
+        comm.put("uin", uin);
+        comm.put("format", "json");
+        comm.put("ct", 19);
+        comm.put("cv", 0);
+        comm.put("authst", qqCookie.getQqmusic_key());
+        JSONObject req_0 = new JSONObject();
+        req_0.put("module", "vkey.GetVkeyServer");
+        req_0.put("method", "CgiGetVkey");
+        JSONObject param = new JSONObject();
+        JSONArray files = new JSONArray();
+        files.add(file);
+        param.put("filename", files);
+        int guid = (int) (Math.random() * 1000000);
+        param.put("guid", String.valueOf(guid));
+        JSONArray songs = new JSONArray();
+        songs.add(mid);
+        param.put("songmid", songs);
+        JSONArray songType = new JSONArray();
+        songType.add(0);
+        param.put("songtype", songType);
+        param.put("uin", uin);
+        param.put("loginflag", 1);
+        param.put("platform", "20");
+        req_0.put("param", param);
+        data.put("req0", req_0);
+        data.put("comm", comm);
+        dataBody.put("data", data);
+        String responseStr = getV2("https://u.y.qq.com/cgi-bin/musicu.fcg", dataBody);
+        if (!responseStr.isEmpty()) {
+            musicInfo.setLevel(level);
+            JSONObject result = JSONObject.parseObject(responseStr);
+            JSONObject req0 = ((JSONObject) result.get("req0"));
+            if (req0 != null) {
+                JSONObject resData = (JSONObject) req0.get("data");
+                if (resData != null) {
+                    Object midUrlObjectArr = resData.get("midurlinfo");
+                    if (midUrlObjectArr != null) {
+                        JSONArray midUrlInfoArr = (JSONArray) midUrlObjectArr;
+                        if (!midUrlInfoArr.isEmpty()) {
+                            String purl = ((JSONObject) midUrlInfoArr.get(0)).getString("purl");
+                            musicInfo.setResourceUrl(PLAY_PREFIX + purl);
+                        }
+                    }
+                }
+            }
+            if (songID != null) {
+                String lyric = getLyric(mid);
+                musicInfo.setLyric(lyric);
+            }
+        }
+        return musicInfo;
+    }
+
+    public String getLyric(String mid) {
+        String url = "http://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg";
+        JSONObject param = new JSONObject();
+        param.put("songmid", mid);
+        param.put("pcachetime", System.currentTimeMillis());
+        param.put("g_tk", 5381);
+        param.put("loginUin", 0);
+        param.put("hostUin", 0);
+        param.put("inCharset", "utf8");
+        param.put("outCharset", "utf-8");
+        param.put("notice", 0);
+        param.put("platform", "yqq");
+        param.put("needNewCode", 0);
+        String responseStr = getV2(url, param);
+        String lyric = "";
+        if (!responseStr.isEmpty()) {
+            int s = responseStr.indexOf("{"), e = responseStr.indexOf("}");
+            responseStr = responseStr.substring(s, e + 1);
+            JSONObject result = JSONObject.parseObject(responseStr);
+            lyric = result.getString("lyric");
+        }
+        return lyric;
+    }
+
     public Object musicsFcgApi(JSONObject formData) {
         String baseUrl = "https://u.y.qq.com/cgi-bin/musics.fcg";
-//        String baseUrl = "https://u6.y.qq.com/cgi-bin/musics.fcg";
         long now = System.currentTimeMillis();
         baseUrl += "?_=" + now;
         baseUrl += "&sign=" + QqEncrypt.getSign(JSONObject.toJSONString(formData));
@@ -221,83 +403,10 @@ public class QqServiceImpl implements CatchService {
         return RestTemplateUtil.postFormJson(baseUrl, formData, cookies, this.get());
     }
 
-    @Override
-    public String getByMV(MusicSource musicSource) {
-        MusicInfo musicInfo = getMusicInfo(musicSource.getPageUrl());
-        String ss = musicSource.getSs();
-        String to = musicSource.getTo();
-        String cmd = "ffmpeg -i " + musicInfo.getResourceUrl() + " ";
-        if (StringUtils.isNotEmpty(ss)) {
-            cmd += " -ss " + ss + " ";
-        }
-        if (StringUtils.isNotEmpty(to)) {
-            cmd += " -to " + to + " ";
-        }
-        cmd = setInfo(cmd, musicInfo);
-        cmd += " -acodec libmp3lame -aq 0 ";
-        File dir = new File(staticUrl);
-        dir.mkdirs();
-        cmd += "\"" + musicInfo.getLocalUrl() + "\"";
-        fFmpeg.executeCommand(cmd, "", true);
-        return musicInfo.getLocalUrl();
-    }
-
-    private String setInfo(String cmd, MusicInfo musicInfo) {
-        cmd += " -metadata title=\"" + musicInfo.getTitle() + "\" ";
-        cmd += " -metadata artist=\"" + musicInfo.getSingers() + "\" ";
-        cmd += " -metadata description=\"\" ";
-        cmd += " -metadata compatible_brands=\"\" ";
-        cmd += " -metadata minor_version=\"\" ";
-        cmd += " -metadata major_brand=\"\" ";
-        return cmd;
-    }
-
-    private MusicInfo getMusicInfo(String pageUrl) {
-        String start = "mv/";
-        String aid = pageUrl.substring(pageUrl.indexOf(start) + start.length());
-        Map<String, Object> body = new HashMap<>();
-        JSONObject mvInfo = new JSONObject();
-        mvInfo.put("module", "music.video.VideoData");
-        mvInfo.put("method", "get_video_info_batch");
-        JSONObject param1 = new JSONObject();
-        JSONArray vidlist = new JSONArray();
-        vidlist.add(aid);
-        param1.put("vidlist", vidlist);
-        JSONArray required = new JSONArray();
-        required.add("name");
-        required.add("singers");
-        param1.put("required", required);
-        mvInfo.put("param", param1);
-
-        JSONObject mvUrl = new JSONObject();
-        mvUrl.put("module", "music.stream.MvUrlProxy");
-        mvUrl.put("method", "GetMvUrls");
-        JSONObject param2 = new JSONObject();
-        JSONArray aids = new JSONArray();
-        aids.add(aid);
-        param2.put("vids", aids);
-        mvUrl.put("param", param2);
-        body.put("mvInfo", mvInfo);
-        body.put("mvUrl", mvUrl);
-        Object response = RestTemplateUtil.post("https://u.y.qq.com/cgi-bin/musicu.fcg", body, null, String.class);
-        JSONObject result = JSONObject.parseObject(response.toString());
-        JSONObject mvInfo1 = (JSONObject) result.get("mvInfo");
-        JSONObject info = ((JSONObject) ((JSONObject) (mvInfo1.get("data"))).get(aid));
-        MusicInfo musicInfo = new MusicInfo();
-        musicInfo.setTitle(info.getString("name"));
-        JSONArray singers = (JSONArray) info.get("singers");
-        String singerNames = singers.stream().map(e -> ((JSONObject) e).getString("name")).collect(Collectors.joining("/"));
-        musicInfo.setSingers(singerNames);
-        JSONObject mvUrl1 = (JSONObject) result.get("mvUrl");
-        JSONArray mp4s = (JSONArray) ((JSONObject) ((JSONObject) mvUrl1.get("data")).get(aid)).get("mp4");
-        for (Object e : mp4s) {
-            JSONArray urls = (JSONArray) ((JSONObject) e).get("freeflow_url");
-            if (urls != null && urls.size() > 0) {
-                musicInfo.setResourceUrl(urls.get(0).toString());
-                break;
-            }
-        }
-        musicInfo.setLocalUrl(staticUrl + "/" + musicInfo.getTitle() + ".mp3");
-        return musicInfo;
+    private String getV2(String url, JSONObject param) {
+        List<String> cookies = new ArrayList<>();
+        String cookie = cookieCache.getQqVipCookie();
+        cookies.add(cookie);
+        return RestTemplateUtil.getWithCookie(url, param, this.get(), cookies);
     }
 }

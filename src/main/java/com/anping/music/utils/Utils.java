@@ -1,12 +1,19 @@
 package com.anping.music.utils;
 
 import com.alibaba.fastjson.JSONObject;
+import org.springframework.http.HttpHeaders;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * @author Anping Sec
@@ -17,7 +24,7 @@ public class Utils {
     private static final String UTF_8 = "UTF-8";
     private static final String JSON_CHARSET = "application/json; charset=UTF-8";
 
-    public static String post(String urlPath, Map<String,Object> body) {
+    public static String post(String urlPath, Map<String, Object> body) {
         String json = JSONObject.toJSONString(body);
         String result = "";
         BufferedReader reader = null;
@@ -60,6 +67,61 @@ public class Utils {
             }
         }
         return result;
+    }
+
+    public static String get(String url, JSONObject param, HttpHeaders headers) {
+        StringBuilder result = new StringBuilder();
+        BufferedReader reader = null;
+        URL uri = null;
+        InputStream is = null;
+        InputStreamReader isr = null;
+        try {
+            url += "?" + jsonToForm(param);
+            uri = new java.net.URL(url);
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) uri.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setUseCaches(false);
+            conn.setRequestProperty("Connection", "Keep-Alive");
+            // 设置接收类型否则返回415错误
+            conn.setRequestProperty("accept", "*/*");
+            Set<Map.Entry<String, List<String>>> entries = headers.entrySet();
+            for (Map.Entry<String, List<String>> entry : entries) {
+                List<String> value = entry.getValue();
+                String val = String.join(";", value);
+                conn.setRequestProperty(entry.getKey(), val);
+            }
+            conn.connect();
+            is = conn.getInputStream();
+            isr = new InputStreamReader(is, StandardCharsets.UTF_8);
+            BufferedReader br = new BufferedReader(isr);
+            String str = null;
+            while ((str = br.readLine()) != null) {
+                result.append(str);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (isr != null) {
+                try {
+                    isr.close();
+                } catch (IOException e) {
+                }
+            }
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (Exception e) {
+                }
+            }
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+        return result.toString();
     }
 
     public static void writeJson2Response(HttpServletResponse response, String respStr) {
@@ -123,10 +185,33 @@ public class Utils {
     }
 
 
-    public static void mySleep(long ms){
-        try{
+    public static String jsonToForm(JSONObject data) {
+        StringBuilder sb = new StringBuilder();
+        Set<Map.Entry<String, Object>> entries = data.entrySet();
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : entries) {
+            if (!first) {
+                sb.append("&");
+            } else {
+                first = false;
+            }
+            sb.append(entry.getKey());
+            sb.append("=");
+            String val = entry.getValue().toString();
+            try {
+                val = URLEncoder.encode(val, StandardCharsets.UTF_8.toString());
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            sb.append(val);
+        }
+        return sb.toString();
+    }
+
+    public static void mySleep(long ms) {
+        try {
             Thread.sleep(ms);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

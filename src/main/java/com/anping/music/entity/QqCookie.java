@@ -80,7 +80,7 @@ public class QqCookie {
     }
 
     public String getCookie() {
-        return time+"uin=" + uin + "; qm_keyst=" + qm_keyst + "; qqmusic_key=" + qqmusic_key
+        return time+"uin=" + uin + "; qm_keyst=" + qqmusic_key + "; qqmusic_key=" + qqmusic_key
                 + "; psrf_qqrefresh_token=" + psrf_qqrefresh_token + "; psrf_qqaccess_token=" + psrf_qqaccess_token;
     }
 
