@@ -8,11 +8,13 @@ import com.anping.music.utils.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -388,6 +390,9 @@ public class QqServiceImpl implements CatchService {
             responseStr = responseStr.substring(s, e + 1);
             JSONObject result = JSONObject.parseObject(responseStr);
             lyric = result.getString("lyric");
+            if (StringUtils.isNotEmpty(lyric)) {
+                lyric = new String(AESUtil.base64ToBytes(lyric), StandardCharsets.UTF_8);
+            }
         }
         return lyric;
     }
