@@ -56,10 +56,14 @@ public class MusicController {
     }
 
     @GetMapping("/getListenDetail")
-    public ResponseResult<MusicInfo> getListenUrl(@RequestParam String source, @RequestParam String mid, String quality, Long songID) {
+    public ResponseResult<MusicInfo> getListenUrl(@RequestParam String source, @RequestParam String mid, String loginKey,
+                                                  String level, Long songID) {
+        if (!LoginController.WX.equals(loginKey)) {
+            level = MusicQuality.AP_128.getLevel();
+        }
         ResponseResult<MusicInfo> data = ResultUtil.success("ok!");
         CatchService catchService = ((CatchService) SpringContextHolder.getBean(source));
-        data.setData(catchService.getListenDetail(new ListenDetailParam(mid, songID, quality)));
+        data.setData(catchService.getListenDetail(new ListenDetailParam(mid, songID, level)));
         return data;
     }
 
